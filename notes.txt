@@ -24,7 +24,15 @@
         --table-name urls -> table is called "urls"
         --attribute-definitions AttributeName=short_code,AttributeType=S -> our key is a string
         --key-schema AttributeName=short_code,KeyType=HASH its the primary key
-        
+
     - put_item
     - get_item
     - short_code: primary key -> lookups are instant no matter how many URLs are stored
+
+--- Deploying Functions to AWS ---
+
+1) Creating an IAM Role for Lambda
+
+    aws iam create-role --role-name lambda-url-shortener-role `
+        --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+
