@@ -1,0 +1,7 @@
+Building Lambda Function and Dynamo DB Table 
+
+- boto3 is python library that lets us connect to AWS service
+    - eg: DynamoDB, S3
+    - installed automatically inside Lambda
+
+- 
