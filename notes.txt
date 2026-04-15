@@ -126,3 +126,32 @@ Creating Integrations
     - AWS_PROXY means that API Gateway passes the entire HTTP request to Lambda
     - it returns whatever Lambda responds
         - this is why our lambda_handler reads from event['body'] and event['pathParameters']
+
+Creating routes
+    
+    - routes map HTTP methods + URL paths to integrations
+    - We need two routes:
+        - POST /shorten to create short URLs
+        - GET /{code} to redirect
+            - {code} is a path parameter, matches anything like /abc123, etc
+
+    - Route: POST /shorten
+    aws apigatewayv2 create-route `
+        --api-id $API_ID `
+        --route-key "POST /shorten" ` -> accepts long url, returns short code
+        --target integrations/$SHORTEN_INTEGRATION_ID `
+        --region us-east-1
+
+    - Route: GET /{code}
+    aws apigatewayv2 create-route `
+        --api-id $API_ID `
+        --route-key "GET /{code}" ` -> any GET to /abc123 triggers redirect_url, {code} becomes event['pathParameters']['code'] in Lambda
+        --target integrations/$REDIRECT_INTEGRATION_ID ` -> Points to the integration from previous step
+        --region us-east-1
+
+Deploying and Testing
+    
+    - we need to create a 'stage', kind of like a published snapshot and then test with real HTTP request
+
+- the chain is: internet -> API Gateway -> Lambda -> DynamoDB
+- the API Gateway's job is to receive HTTP requests, check which route matches, then hand of request to right Lambda
