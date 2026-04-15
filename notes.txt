@@ -1,12 +1,6 @@
---- Building Lambda Function and Dynamo DB Table ---
+--- Phase 1: Setting up folders and AWS account ---
 
-- boto3 is python library that lets us connect to AWS service
-    - eg: DynamoDB, S3
-    - installed automatically inside Lambda
-
-- lambda_handler(event, context) is the entry point that AWS always calls, kinda like main()
-    - event contains whatever the caller send (the URL here)
-    - context contains metadata about Lambda environment
+--- Phase 2: Building Lambda Function and Dynamo DB Table ---
 
 - DynamoDB
     - this is AWS's NoSQL database
@@ -29,7 +23,7 @@
     - get_item
     - short_code: primary key -> lookups are instant no matter how many URLs are stored
 
---- Deploying Functions to AWS ---
+--- Phase 2: Deploying Functions to AWS ---
 
 Creating an IAM Role for Lambda
 
@@ -48,19 +42,87 @@ Creating an IAM Role for Lambda
 
     - Allows the function to write logs, CloudWatch is AWS's logging service, we can see error msgs
 
-Zipping and Deploying
+--- Phase 2: Zipping and Deploying ---
 
     Compress-Archive -Path lambda_function.py -DestinationPath function.zip
 
     - we need to zip lambda file since Lambda doesn't accept raw .py files
 
     aws lambda create-function `
+        --function-name shorten_url ` -> names the function in AWS
+        --runtime python3.11 ` -> language engine
+        --role arn:aws:iam::YOUR_ACCOUNT_ID:role/lambda-url-shortener-role ` -> attaches permissions in first block
+        --handler lambda_function.lambda_handler ` -> tells Lambda which function to call when triggered
+        --zip-file fileb://function.zip ` -> read this as a binary file from disk (fileb)
+        --region us-east-1 -> region
+
+    - main deployment function 
+    
+    aws lambda invoke ` -> manually triggers lambda
         --function-name shorten_url `
-        --runtime python3.11 `
-        --role arn:aws:iam::YOUR_ACCOUNT_ID:role/lambda-url-shortener-role `
-        --handler lambda_function.lambda_handler `
-        --zip-file fileb://function.zip `
+        --payload '{"body": "{\"long_url\": \"https://google.com\"}"}' `
+        --cli-binary-format raw-in-base64-out ` -> we need to tell AWS CLI that we are entering JSON
+        output.json
+
+    - testing, we trigger the function without needing an HTTP request
+
+- all permissions need to be explicitly granted in AWS
+- IAM role is how we grant Lambda permission to run DynamoDB
+- --handler is how AWS knows which exact function to run
+- fileb:// is how we get binary files up to the cloud
+
+- boto3 is python library that lets us connect to AWS service
+    - eg: DynamoDB, S3
+    - installed automatically inside Lambda
+
+- lambda_handler(event, context) is the entry point that AWS always calls, kinda like main()
+    - event contains whatever the caller send (the URL here)
+    - context contains metadata about Lambda environment
+
+--- Phase 3: Creating the API ---
+    
+Creating the API
+
+    aws apigatewayv2 create-api `
+        --name url-shortener-api `
+        --protocol-type HTTP `
         --region us-east-1
 
+    - HTTP API is newer and cheaper than REST API in API Gateway
+    - HTTP API is better since its simpler to configure and has lower latency
 
+Giving API Gateway permission to invoke Lambda
+    
+    - we need to give API Gateway permission to trigger Lambda functions
 
+    aws lambda add-permission `
+        --function-name shorten_url ` <- we replace shorten_url with redirect_url to giv perm to that
+        --statement-id apigateway-shorten ` -> unique name for permission rule
+        --action lambda:InvokeFunction ` -> specifically allows to run this function
+        --principal apigateway.amazonaws.com ` -> only API Gateway can use this permission
+        --region us-east-1
+
+Creating Integrations
+
+    - integrations are the wiring between a route (URL path) and Lambda function
+    - You create one integration per Lambda function, then attach routes to them
+
+    - getting info of each function
+    
+    aws lambda get-function `
+        --function-name shorten_url `
+        --query 'Configuration.FunctionArn' `
+        --output text
+
+    - creating integration for each funnction
+
+    aws apigatewayv2 create-integration `
+        --api-id $API_ID `
+        --integration-type AWS_PROXY `
+        --integration-uri YOUR_SHORTEN_URL_FUNCTION_ARN `
+        --payload-format-version 2.0 `
+        --region us-east-1
+
+    - AWS_PROXY means that API Gateway passes the entire HTTP request to Lambda
+    - it returns whatever Lambda responds
+        - this is why our lambda_handler reads from event['body'] and event['pathParameters']
