@@ -183,11 +183,17 @@ Creating a clicks table in DynamoDB
     aws dynamodb create-table `
     --table-name clicks `
     --attribute-definitions `
-        AttributeName=click_id,AttributeType=S `
+        AttributeName=click_id,AttributeType=S ` -> diff from SQL, only need to define primary key (click_id), type String
     --key-schema `
-        AttributeName=click_id,KeyType=HASH `
+        AttributeName=click_id,KeyType=HASH `  -> click_id is the partition key = main identifier to locate rows, constant time
     --billing-mode PAY_PER_REQUEST `
     --region us-east-1
+
+    - we don't add clicks data to URL table since they are different shapes
+        - the URL table has one row per short URL, updated in place each time smth changes
+        - clicks table has one row per click event, only grows never updates
+        - mixing these two would be awkward and expensive
+
 
     - each recorded click looks like:
     {
@@ -207,3 +213,45 @@ Geo Lookup Layer
 
     - to find visitors country and city from IP address, we can use ip-api.com
     - Lambda will call this during each redirect
+
+Updated lambda_function in redirect_url
+
+    - we are making an outbound network request from inside AWS to an external service on the internet
+    - try/except is defensive programming, we don't let errors crash lambda and break redirect
+        - redirect still works, we just don't have the data for the click
+
+Redeploying and Verifying Analytics
+
+    Compress-Archive -Path lambda_function.py `
+        -DestinationPath function.zip -Force
+
+    aws lambda update-function-code `
+        --function-name redirect_url `
+        --zip-file fileb://function.zip `
+        --region us-east-1
+
+    cd ..
+
+    - we are using update-function-code since the function already exists
+
+    - we can see the clicks table with
+
+    aws dynamodb scan `
+        --table-name clicks `
+        --region us-east-1
+
+    - Query Clicks for Specific Short Code
+
+    aws dynamodb query `
+        --table-name clicks `
+        --index-name short_code-index `
+        --key-condition-expression "short_code = :sc" `
+        --expression-attribute-values '{":sc": {"S": "xK9mPq"}}' `
+        --region us-east-1
+
+    - query above requires a GSI (Global Secondary Index) on short_code
+    - more for production queries
+
+- counter vs event log
+    - counter: we just increment the click count by 1
+    - event log: we know who clicked and when, recording everything

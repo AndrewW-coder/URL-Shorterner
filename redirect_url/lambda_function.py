@@ -37,6 +37,11 @@ def get_browser(user_agent):
 def lambda_handler(event, context):
     short_code = event['pathParameters']['code']
     headers = event.get('headers', {})
+
+    # AWS_Proxy integration packages entire HTTP request into event object our lambda receives
+    # include metadata from request itself stored under requestContext
+    # sourceIP is IP address of client making the request
+    
     ip = event.get('requestContext', {}).get('http', {}).get('sourceIp', '0.0.0.0') # visitors real IP address from API Gateway
     user_agent = headers.get('user-agent', '') # string the browser sends to identify itself
 
