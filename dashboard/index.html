@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Shortener Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#1a1a1a}
+        header{background:#1a1a2e;color:#fff;padding:1.5rem 2rem}
+        header h1{font-size:1.2rem;font-weight:500}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;padding:1.5rem 2rem 0}
+        .stat{background:#fff;border-radius:8px;padding:1.25rem}
+        .stat-label{font-size:12px;color:#888;margin-bottom:4px}
+        .stat-value{font-size:28px;font-weight:500}
+        .charts{display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:1.5rem 2rem}
+        .chart-box{background:#fff;border-radius:8px;padding:1.25rem}
+        .chart-box h2{font-size:13px;color:#555;font-weight:500;margin-bottom:1rem}
+        .tbl-wrap{margin:0 2rem 2rem;background:#fff;border-radius:8px;overflow:hidden}
+        .tbl-wrap h2{font-size:13px;font-weight:500;color:#555;padding:1rem 1.25rem .5rem}
+        table{width:100%;border-collapse:collapse;font-size:13px}
+        th{text-align:left;padding:8px 1.25rem;color:#aaa;font-weight:500;border-bottom:1px solid #f0f0f0}
+        td{padding:10px 1.25rem;border-bottom:1px solid #f7f7f7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+        tr:last-child td{border:none}
+        .loading{text-align:center;padding:3rem;color:#aaa}
+        @media(max-width:600px){.charts{grid-template-columns:1fr}}
+    </style>
+</head>
+<body>
+<header><h1>URL Shortener — Analytics Dashboard</h1></header>
+<div id="app"><div class="loading">Loading...</div></div>
+
+<script>
+    const API = 'https://bp9x86yz97.execute-api.us-east-1.amazonaws.com/prod';
+    const COLORS = ['#4f8ef7','#f7964f','#4fc97a','#f74f6a','#9b4ff7','#4ff7f0'];
+
+    async function load() {
+        const data = await fetch(API + '/stats').then(r => r.json()); // fetches the stats from the API and parses the response as JSON, /GET request
+        render(data);
+    }
+
+    // renders the dashboard with the data from the API, it creates the HTML structure and uses Chart.js to create the charts
+    function render(d) { 
+        document.getElementById('app').innerHTML =
+        '<div class="grid">' +
+            stat('Total clicks', d.total_clicks) +
+            stat('URLs tracked', d.top_urls.length) +
+            stat('Top country', Object.keys(d.top_countries)[0] || '—', true) +
+        '</div>' +
+        '<div class="charts">' +
+            '<div class="chart-box"><h2>Clicks by country</h2><canvas id="cc"></canvas></div>' +
+            '<div class="chart-box"><h2>Device breakdown</h2><canvas id="dc"></canvas></div>' +
+        '</div>' +
+        '<div class="tbl-wrap"><h2>Top URLs</h2>' +
+            '<table><thead><tr><th>Short code</th><th>Destination</th><th>Clicks</th></tr></thead>' +
+            '<tbody>' + d.top_urls.map(u =>
+            '<tr><td><code>' + u.short_code + '</code></td>' +
+            '<td style="color:#777">' + u.long_url + '</td>' +
+            '<td><strong>' + u.clicks + '</strong></td></tr>'
+            ).join('') +
+            '</tbody></table></div>';
+
+        new Chart(document.getElementById('cc'), {
+        type: 'bar',
+        data: { labels: Object.keys(d.top_countries),
+                datasets: [{ data: Object.values(d.top_countries),
+                    backgroundColor: COLORS, borderRadius: 4, borderSkipped: false }] },
+        options: { plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+        });
+
+        new Chart(document.getElementById('dc'), {
+        type: 'doughnut',
+        data: { labels: Object.keys(d.devices),
+                datasets: [{ data: Object.values(d.devices), backgroundColor: COLORS }] },
+            options: { plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    function stat(label, value, small) {
+        return '<div class="stat"><div class="stat-label">' + label + '</div>' +
+            '<div class="stat-value" style="font-size:' + (small?'18px':'28px') + '">' + value + '</div></div>';
+    }
+
+    load();
+</script>
+</body>
+</html>

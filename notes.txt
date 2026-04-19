@@ -255,3 +255,52 @@ Redeploying and Verifying Analytics
 - counter vs event log
     - counter: we just increment the click count by 1
     - event log: we know who clicked and when, recording everything
+
+--- Phase 5: Dashboard ---
+
+Adding a /stats Lambda function
+
+Dashboard HTML
+
+Creating S3 bucket
+
+    aws s3 mb s3://url-shortener-dash-NAME --region us-east-1
+
+    - mb = make bucket
+
+    aws s3api put-public-access-block `
+        --bucket url-shortener-dash-Name `
+        --public-access-block-configuration `
+        "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
+
+    - AWS enables four different "block public access" guards on every new bucket by default, need to explicitly turn off
+
+    aws s3api put-bucket-policy 
+        --bucket url-shortener-dash-Name 
+        --policy file://policy.json -> Have permissions in a file
+
+    aws s3 website s3://url-shortener-dash-bananaiam `
+        --index-document index.html `
+        --error-document index.html
+
+    - flips S3 from file storage mode to website hosting mode
+    - we activate a web endpoint at bucket.s3-website-region.amazonaws.com where root URL is index.html
+    - error-document means any path that doesnt match a real file also serves index.html
+
+    aws s3 cp dashboard/index.html `
+        s3://url-shortener-dash-Name/index.html `
+        --content-type text/html
+
+    - copies file from local machine to S3
+
+
+Concepts:
+    - Serverless / FaaS : Lambda only runs on request, no idle cost and infinite scale
+    - Event Driven Design : Each HTTP request triggers one unique function
+    - Least Privilege IAM : every role only has the persmissions it actually needs
+    - NoSQL key design : Partition key choice, O(1) lookups by primary key
+    - Event sourcing : Storing events rather than updating state in place
+    - Dual-write pattern : counter for fast reads, event log for deep queries
+    - Zero-downtime deploy : update function code replaces code with no restaurant
+    - CORS : Why browsers enforce it, what the browser doesn
+    - S3 static hosting : File bucket as CDN - backed web server - no infra to manage
